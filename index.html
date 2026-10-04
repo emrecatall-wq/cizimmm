@@ -134,7 +134,7 @@
     <div class="tsep"></div>
     <button class="gbtn" id="grpView"><span>⛶</span><span class="lbl">Görünüm</span></button>
     <button class="gbtn" id="grpFile"><span>💾</span><span class="lbl">Dosya</span></button>
-    <button class="gbtn" id="grpInput"><span id="grpInputIcon">🖊️️</span><span class="lbl">Giriş</span></button>
+    <button class="gbtn" id="grpInput"><span id="grpInputIcon">🖊</span><span class="lbl">Giriş</span></button>
   </div>
 
   <div id="canvasWrap">
@@ -159,7 +159,7 @@
 
 <div id="contextMenu">
   <button class="pbtn" id="cmLabel"><span class="ic">🏷️</span><span>İsim / Açıklama Ver</span></button>
-  <button class="pbtn" id="cmEditLen"><span class="ic">✏️️</span><span>Uzunluk Değiştir (mm)</span></button>
+  <button class="pbtn" id="cmEditLen"><span class="ic">✏</span><span>Uzunluk Değiştir (mm)</span></button>
   <button class="pbtn" id="cmRotate"><span class="ic">🔄</span><span>90° Döndür</span></button>
   <button class="pbtn" id="cmCopy"><span class="ic">📋</span><span>Kopyala</span></button>
   <button class="pbtn" id="cmDelete" style="color:var(--danger);"><span class="ic">🗑️</span><span>Sil</span></button>
@@ -170,7 +170,6 @@
 (function(){
 "use strict";
 
-// ---------- GEOMETRİ & NOKTA (POINT) SINIFI ----------
 class Point {
   constructor(x, y) {
     this.x = Number(x);
@@ -206,7 +205,6 @@ const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 const wrap = document.getElementById('canvasWrap');
 
-// ---------- State ----------
 let shapes = [];
 let undoStack = []; 
 let nextId = 1;
@@ -254,7 +252,6 @@ let isMiddleMousePan = false;
 
 const MDF_THICKNESS = 18;
 
-// ---------- DOM ----------
 const lenInput = document.getElementById('lenInput');
 const directInputBox = document.getElementById('directInputBox');
 const directInputVal = document.getElementById('directInputVal');
@@ -268,7 +265,6 @@ const popover = document.getElementById('popover');
 const contextMenu = document.getElementById('contextMenu');
 const overlayClick = document.getElementById('overlayClick');
 
-// ---------- Utility & History ----------
 function pushHistory(){
   undoStack.push(JSON.stringify(shapes));
   if(undoStack.length > 30) undoStack.shift();
@@ -314,7 +310,6 @@ function resizeCanvas(){
 }
 window.addEventListener('resize', resizeCanvas);
 
-// ---------- Persistence ----------
 const STORAGE_KEY = 'cizgi_cad_v14_data';
 function save(showMsg){
   try{
@@ -338,7 +333,6 @@ function load(){
 }
 function autosave(){ save(false); }
 
-// ---------- MDF Geometry ----------
 function getMdfCorners(p0, p1, rawCursor){
   const dx = p1.x - p0.x, dy = p1.y - p0.y;
   const len = p0.distanceTo(p1) || 1;
@@ -360,7 +354,6 @@ function getMdfCorners(p0, p1, rawCursor){
   ];
 }
 
-// ---------- Gelişmiş Snap Engine ----------
 function getSnapPoints(excludeId){
   const pts = [];
   for(const s of shapes){
@@ -390,7 +383,6 @@ function getSnapPoints(excludeId){
   return pts;
 }
 
-// ---------- Object Snap Tracking (OTRACK) ----------
 function addTrackedPoint(p){
   for(const tp of trackedPoints){
     if(tp.distanceTo(p) < 0.01) return;
@@ -479,7 +471,6 @@ function applyOrtho(start, pt){
   return dx >= dy ? new Point(pt.x, start.y) : new Point(start.x, pt.y);
 }
 
-// ---------- SES TANIMA MOTORU ----------
 let recognition = null;
 let voiceCommitTimer = null;
 
@@ -588,7 +579,6 @@ function parseTurkishNumber(str) {
   return total > 0 ? total : null;
 }
 
-// ---------- Rendering & Visual Snapping ----------
 let labelHitboxes = [];
 
 function drawGrid(){
@@ -635,18 +625,16 @@ function roundRect(x,y,w,h,r){
   ctx.closePath();
 }
 
-/* SORU İŞARETİ BUTONUNU KORUYAN VE RAKAMLARIN ÖNÜNE YERLEŞTİREN GÜNCEL LABEL DÜZENİ */
+/* ÖLÇÜ RAKAMLARININ VE SORU İŞARETİNİN DÜZGÜN HİZALANDIĞI FONKSİYON */
 function drawLabelBox(sx,sy,text,hitKey,mm,editable){
   ctx.font='600 12px -apple-system, sans-serif';
   const textWidth = ctx.measureText(text).width;
   
-  // Soru işareti butonu için ayrılan alan
   const showBtn = editable !== false;
   const btnWidth = showBtn ? 16 : 0;
   const btnGap = showBtn ? 6 : 0;
   
-  // Kutuyu genişletip içindeki öğelerin çakışmasını engelliyoruz
-  const boxW = textWidth + btnWidth + btnGap + 12;
+  const boxW = textWidth + btnWidth + btnGap + 14;
   const boxH = 20;
   const bx = sx - boxW/2, by = sy - boxH/2;
   
@@ -656,7 +644,7 @@ function drawLabelBox(sx,sy,text,hitKey,mm,editable){
   roundRect(bx,by,boxW,boxH,6);
   ctx.fill(); ctx.stroke();
 
-  // Soru İşareti Butonu (Tıklanabilir Not/Açıklama alanı — kutunun sol başı)
+  // Soru İşareti Butonu (Sola çekilerek rakamların önünden uzaklaştırıldı)
   if(showBtn){
     const btnX = bx + 10;
     const btnY = sy;
@@ -673,12 +661,12 @@ function drawLabelBox(sx,sy,text,hitKey,mm,editable){
     ctx.fillText('?', btnX, btnY + 0.5);
   }
 
-  // Ölçü Rakamları — Soru işaretinin sağ tarafına net bir boşlukla hizalanır
+  // Ölçü Değeri (Boşluk bırakılarak netleşti)
   ctx.font = '600 12px -apple-system, sans-serif';
   ctx.fillStyle = '#ffb454';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  const textX = bx + (showBtn ? 22 : 6);
+  const textX = bx + (showBtn ? 22 : 7);
   ctx.fillText(text, textX, sy + 0.5);
 
   if(editable) labelHitboxes.push({x:bx,y:by,w:boxW,h:boxH,key:hitKey,mm});
@@ -926,7 +914,6 @@ function render(){
   stMode.textContent = 'Mod: ' + tool.toUpperCase();
 }
 
-// ---------- Pointer & Dynamic Input ----------
 let panOnly = false;
 function getPointerType(e){ return e.pointerType||'mouse'; }
 function shouldDraw(e){
@@ -1106,7 +1093,6 @@ function zoomAt(screenPt,factor){
   render();
 }
 
-// ---------- Drawing Logic ----------
 function handleDrawTap(worldPt){
   if(tool==='line' || tool==='mdf'){
     if(!drawing) {
@@ -1192,7 +1178,6 @@ function promptShapeLabel(s){
   }
 }
 
-// Klavye Değer Girişi
 window.addEventListener('keydown',(e)=>{
   if(e.target.tagName === 'INPUT') return;
 
@@ -1251,7 +1236,6 @@ function commitDirectTypedLength(){
   resetDirectInput();
 }
 
-// ---------- Hit testing shapes ----------
 function hitTestShape(worldPt){
   const tol=12/scale; 
   for(let i=shapes.length-1;i>=0;i--){
@@ -1276,7 +1260,6 @@ function hitTestShape(worldPt){
   return null;
 }
 
-// ---------- Select / Drag / Erase ----------
 function startSelectDrag(world, e){
   const hit = hitTestShape(world);
   if(hit){
@@ -1340,7 +1323,6 @@ function pasteClipboard(){
   showToast('Yapıştırıldı');
 }
 
-// ---------- Label editing ----------
 function hitTestLabel(lp){
   for(const h of labelHitboxes) if(lp.x>=h.x && lp.x<=h.x+h.w && lp.y>=h.y && lp.y<=h.y+h.h) return h;
   return null;
@@ -1388,7 +1370,6 @@ function applyLengthEdit(key,newMm){
   }
 }
 
-// ---------- Popover & Context Menu ----------
 function openMenu(anchorEl, items){
   popover.innerHTML='';
   items.forEach(it=>{
@@ -1452,7 +1433,6 @@ document.getElementById('cmRotate').addEventListener('click', ()=>{
 document.getElementById('cmCopy').addEventListener('click', ()=>{ closeMenu(); copySelected(); });
 document.getElementById('cmDelete').addEventListener('click', ()=>{ closeMenu(); deleteSelected(); });
 
-// ---------- Toolbar Wiring ----------
 const drawIcons = { select:'↖', line:'╱', polyline:'⌇', rect:'▭', mdf:'▬' };
 function setTool(t){
   tool=t; drawing=null; liveWorld=null; snapResult=null; dragSnapshot=null; hoverTrackPoint=null; clearTrackedPoints(); resetDirectInput();
@@ -1603,7 +1583,7 @@ document.getElementById('grpFile').addEventListener('click', function(){
   ]);
 });
 
-const inputIcons={pen:'🖊️',hand:'✋',pan:'🖐️'};
+const inputIcons={pen:'🖊️',hand:'✋',pan:'🖐️️'};
 document.getElementById('grpInput').addEventListener('click', function(){
   openMenu(this, [
     {icon:'🖊️', label:'Kalem (S Pen çizer)', active:inputMode==='pen', onClick:()=>setInputMode('pen')},
@@ -1625,7 +1605,6 @@ function fitToView(){
   render();
 }
 
-// ---------- Point Tabanlı Kenar Çakışma ve Bant Formülü ----------
 function isEdgeClosed(pA, pB, currentMdfId){
   const tol = 1.0; 
   for(const s of shapes){
@@ -1641,7 +1620,6 @@ function isEdgeClosed(pA, pB, currentMdfId){
   return false;
 }
 
-// ---------- CSV / E-Tablo Dışa Aktarma ----------
 function csvNum(mm){
   return fmtLen(mm).replace('.', ',');
 }
@@ -1718,7 +1696,6 @@ function exportMdfCsv(){
   showToast(`${groups.size} satır kesim listesi Excel olarak aktarıldı.`);
 }
 
-// ---------- PDF Export ----------
 function exportPdf(){
   if(!shapes.length){ showToast('Çizim boş'); return; }
   const { jsPDF } = window.jspdf;
@@ -1763,7 +1740,6 @@ function exportPdf(){
   doc.save('cizgi-cad-'+new Date().toISOString().slice(0,10)+'.pdf');
 }
 
-// ---------- Init ----------
 const loaded = load();
 resizeCanvas();
 if(!loaded){ offX=40; offY=40; }
@@ -1774,7 +1750,6 @@ if(!window.isSecureContext){
   setTimeout(()=>showToast('Not: Mikrofon için bu dosyayı bir sunucudan (http/https) açmanız gerekir'), 1000);
 }
 
-// ---------- PWA: Service Worker Kaydı ----------
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('sw.js').catch(()=>{});
