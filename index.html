@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Çizgi CAD v15.3 - AutoCAD OTRACK Ofset Desteği</title>
+<title>Çizgi CAD v15.4 - AutoCAD Hassas OTRACK Yön Kilitli Ofset</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b1d1f">
 <meta name="mobile-web-app-capable" content="yes">
@@ -158,7 +158,7 @@
 <div id="popover"></div>
 
 <div id="contextMenu">
-  <button class="pbtn" id="cmLabel"><span class="ic">🏷️</span><span>İsim / Açıklama Ver</span></button>
+  <button class="pbtn" id="cmLabel"><span class="ic">🏷️️</span><span>İsim / Açıklama Ver</span></button>
   <button class="pbtn" id="cmEditLen"><span class="ic">✏</span><span>Uzunluk Değiştir (mm)</span></button>
   <button class="pbtn" id="cmRotate"><span class="ic">🔄</span><span>90° Döndür</span></button>
   <button class="pbtn" id="cmCopy"><span class="ic">📋</span><span>Kopyala</span></button>
@@ -398,9 +398,9 @@ function feedTrackedPointsFromPoints(pts){
   for(const p of pts) addTrackedPoint(p);
 }
 
-// ---------- Gelişmiş Snap Engine + AutoCAD OTRACK Mesafe Hesabı ----------
+// ---------- AutoCAD Standartlarına Tam Uyumlu OTRACK Hıza Engine ----------
 function computeSnap(worldPt, excludeId){
-  if(!snapOn) return { point: worldPt, marker: null, guides: [], trackBase: null, trackDist: 0 };
+  if(!snapOn) return { point: worldPt, marker: null, guides: [], trackBase: null, trackDir: null, trackDist: 0 };
   
   const snapPts = getSnapPoints(excludeId);
   const radius = 16 / scale;
@@ -419,11 +419,11 @@ function computeSnap(worldPt, excludeId){
     if(snapSettings.tracking && best.type === 'point'){
       addTrackedPoint(best.point);
     }
-    return { point: best.point, marker: best.type, guides: [], trackBase: null, trackDist: 0 };
+    return { point: best.point, marker: best.type, guides: [], trackBase: null, trackDir: null, trackDist: 0 };
   }
 
   if(snapSettings.tracking && trackedPoints.length){
-    const tol = 12 / scale;
+    const tol = 14 / scale;
 
     if(trackedPoints.length >= 2){
       for(let i=0;i<trackedPoints.length;i++){
@@ -432,25 +432,33 @@ function computeSnap(worldPt, excludeId){
           const a = trackedPoints[i], b = trackedPoints[j];
           const candidate = new Point(a.x, b.y);
           if(worldPt.distanceTo(candidate) < tol){
-            return { point: candidate, marker: 'track2', guides: [a, b], trackBase: null, trackDist: 0 };
+            return { point: candidate, marker: 'track2', guides: [a, b], trackBase: null, trackDir: null, trackDist: 0 };
           }
         }
       }
     }
 
-    // AutoCAD OTRACK Hizalama ve Uzaklık Takibi
+    // AutoCAD Vektörel Hıza ve Tam Açı Kilitleme
     for(const tp of trackedPoints){
-      const dx = Math.abs(worldPt.x - tp.x);
-      const dy = Math.abs(worldPt.y - tp.y);
-      if(dx < tol){
+      const dx = worldPt.x - tp.x;
+      const dy = worldPt.y - tp.y;
+      
+      // Dikey Hıza (Yukarı / Aşağı)
+      if(Math.abs(dx) < tol){
+        const dirY = dy >= 0 ? 1 : -1;
+        const dir = { x: 0, y: dirY };
         const snappedPt = new Point(tp.x, worldPt.y);
-        const dist = tp.distanceTo(snappedPt);
-        return { point: snappedPt, marker: 'track', guides: [tp], trackBase: tp, trackDist: dist };
+        const dist = Math.abs(dy);
+        return { point: snappedPt, marker: 'track', guides: [tp], trackBase: tp, trackDir: dir, trackDist: dist };
       }
-      if(dy < tol){
+      
+      // Yatay Hıza (Sağa / Sola)
+      if(Math.abs(dy) < tol){
+        const dirX = dx >= 0 ? 1 : -1;
+        const dir = { x: dirX, y: 0 };
         const snappedPt = new Point(worldPt.x, tp.y);
-        const dist = tp.distanceTo(snappedPt);
-        return { point: snappedPt, marker: 'track', guides: [tp], trackBase: tp, trackDist: dist };
+        const dist = Math.abs(dx);
+        return { point: snappedPt, marker: 'track', guides: [tp], trackBase: tp, trackDir: dir, trackDist: dist };
       }
     }
   }
@@ -463,13 +471,13 @@ function computeSnap(worldPt, excludeId){
         const p1 = edges[i], p2 = edges[(i+1)%edges.length];
         const proj = worldPt.projectToSegment(p1, p2);
         if(worldPt.distanceTo(proj) < radius){
-          return { point: proj, marker: 'perp', guides: [p1, p2], trackBase: null, trackDist: 0 };
+          return { point: proj, marker: 'perp', guides: [p1, p2], trackBase: null, trackDir: null, trackDist: 0 };
         }
       }
     }
   }
 
-  return { point: worldPt, marker: null, guides: [], trackBase: null, trackDist: 0 };
+  return { point: worldPt, marker: null, guides: [], trackBase: null, trackDir: null, trackDist: 0 };
 }
 
 function applyOrtho(start, pt){
@@ -896,7 +904,7 @@ function drawSnapAndTrack(){
       ctx.beginPath(); ctx.moveTo(tp.x, tp.y); ctx.lineTo(sp.x, sp.y); ctx.stroke(); ctx.restore();
       ctx.beginPath(); ctx.arc(sp.x, sp.y, 5, 0, Math.PI * 2); ctx.fill();
 
-      // Hiza Çizgisindeki Mesafe Etiketi Görseli
+      // Hıza Çizgisindeki Canlı Mesafe Görseli
       if(snapResult.trackDist > 0){
         ctx.font = 'bold 11px -apple-system, sans-serif';
         ctx.fillStyle = '#ffb454';
@@ -1202,7 +1210,7 @@ function promptShapeLabel(s){
   }
 }
 
-// AutoCAD Klavyeden Doğrudan Değer Girişi ve OTRACK Kilitleme
+// AutoCAD Klavyeden Doğrudan Değer Girişi ve OTRACK Kilitli Ofset Atama
 window.addEventListener('keydown',(e)=>{
   if(e.target.tagName === 'INPUT') return;
 
@@ -1267,13 +1275,14 @@ function commitDirectTypedLength(){
     finalizeSimpleShape(targetPt);
   } 
   // 2. Henüz çizim yokken bir noktadan hıza alıp mesafe girilmesi (AutoCAD OTRACK Offset)
-  else if(!isNaN(mmVal) && mmVal > 0 && !drawing && snapResult && snapResult.marker === 'track' && snapResult.trackBase){
+  else if(!isNaN(mmVal) && mmVal > 0 && !drawing && snapResult && snapResult.marker === 'track' && snapResult.trackBase && snapResult.trackDir){
     const base = snapResult.trackBase;
-    const dx = liveWorld.x - base.x, dy = liveWorld.y - base.y;
-    const angle = Math.atan2(dy, dx);
+    const dir = snapResult.trackDir;
+    
+    // Tam Hıza Yönüyle Vektörel Nokta Hesabı (Sapmasız)
     const offsetPt = new Point(
-      base.x + Math.cos(angle) * mmVal,
-      base.y + Math.sin(angle) * mmVal
+      base.x + dir.x * mmVal,
+      base.y + dir.y * mmVal
     );
     handleDrawTap(offsetPt);
   }
