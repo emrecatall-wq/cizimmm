@@ -122,7 +122,7 @@
     <button class="gbtn" id="btnEraser"><span>🧹</span><span class="lbl">Sil</span></button>
     <button class="gbtn" id="btnUndo"><span>↩️</span><span class="lbl">Geri Al</span></button>
     <div class="tsep"></div>
-    <button class="gbtn" id="btnPanOnly"><span>🖐️️</span><span class="lbl">Gezin</span></button>
+    <button class="gbtn" id="btnPanOnly"><span>🖐</span><span class="lbl">Gezin</span></button>
     <div class="tsep"></div>
     <button class="gbtn" id="toolDim"><span>📏</span><span class="lbl">Ölçü</span></button>
     <div class="tsep"></div>
@@ -134,7 +134,7 @@
     <div class="tsep"></div>
     <button class="gbtn" id="grpView"><span>⛶</span><span class="lbl">Görünüm</span></button>
     <button class="gbtn" id="grpFile"><span>💾</span><span class="lbl">Dosya</span></button>
-    <button class="gbtn" id="grpInput"><span id="grpInputIcon">🖊️</span><span class="lbl">Giriş</span></button>
+    <button class="gbtn" id="grpInput"><span id="grpInputIcon">🖊️️</span><span class="lbl">Giriş</span></button>
   </div>
 
   <div id="canvasWrap">
@@ -159,7 +159,7 @@
 
 <div id="contextMenu">
   <button class="pbtn" id="cmLabel"><span class="ic">🏷️</span><span>İsim / Açıklama Ver</span></button>
-  <button class="pbtn" id="cmEditLen"><span class="ic">✏️</span><span>Uzunluk Değiştir (mm)</span></button>
+  <button class="pbtn" id="cmEditLen"><span class="ic">✏️️</span><span>Uzunluk Değiştir (mm)</span></button>
   <button class="pbtn" id="cmRotate"><span class="ic">🔄</span><span>90° Döndür</span></button>
   <button class="pbtn" id="cmCopy"><span class="ic">📋</span><span>Kopyala</span></button>
   <button class="pbtn" id="cmDelete" style="color:var(--danger);"><span class="ic">🗑️</span><span>Sil</span></button>
@@ -635,16 +635,17 @@ function roundRect(x,y,w,h,r){
   ctx.closePath();
 }
 
-/* SORU İŞARETİ VE ÖLÇÜ ÇAKIŞMASINI ÇÖZEN DÜZELTİLMİŞ LABEL ÇİZİMİ */
+/* SORU İŞARETİ BUTONUNU KORUYAN VE RAKAMLARIN ÖNÜNE YERLEŞTİREN GÜNCEL LABEL DÜZENİ */
 function drawLabelBox(sx,sy,text,hitKey,mm,editable){
   ctx.font='600 12px -apple-system, sans-serif';
   const textWidth = ctx.measureText(text).width;
   
-  // Soru işareti butonu ve aradaki emniyet mesafesi (padding) hesabı
+  // Soru işareti butonu için ayrılan alan
   const showBtn = editable !== false;
   const btnWidth = showBtn ? 16 : 0;
   const btnGap = showBtn ? 6 : 0;
   
+  // Kutuyu genişletip içindeki öğelerin çakışmasını engelliyoruz
   const boxW = textWidth + btnWidth + btnGap + 12;
   const boxH = 20;
   const bx = sx - boxW/2, by = sy - boxH/2;
@@ -655,7 +656,7 @@ function drawLabelBox(sx,sy,text,hitKey,mm,editable){
   roundRect(bx,by,boxW,boxH,6);
   ctx.fill(); ctx.stroke();
 
-  // Soru işareti ikonu için daha öne yerleşim (Çakışmayı önleyen kısım)
+  // Soru İşareti Butonu (Tıklanabilir Not/Açıklama alanı — kutunun sol başı)
   if(showBtn){
     const btnX = bx + 10;
     const btnY = sy;
@@ -672,7 +673,7 @@ function drawLabelBox(sx,sy,text,hitKey,mm,editable){
     ctx.fillText('?', btnX, btnY + 0.5);
   }
 
-  // Ölçü rakamlarını soru işaretinden sağa kaydırarak okunabilir yapıyoruz
+  // Ölçü Rakamları — Soru işaretinin sağ tarafına net bir boşlukla hizalanır
   ctx.font = '600 12px -apple-system, sans-serif';
   ctx.fillStyle = '#ffb454';
   ctx.textAlign = 'left';
