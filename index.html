@@ -122,7 +122,7 @@
     <button class="gbtn" id="btnEraser"><span>🧹</span><span class="lbl">Sil</span></button>
     <button class="gbtn" id="btnUndo"><span>↩️</span><span class="lbl">Geri Al</span></button>
     <div class="tsep"></div>
-    <button class="gbtn" id="btnPanOnly"><span>🖐️</span><span class="lbl">Gezin</span></button>
+    <button class="gbtn" id="btnPanOnly"><span>🖐️️</span><span class="lbl">Gezin</span></button>
     <div class="tsep"></div>
     <button class="gbtn" id="toolDim"><span>📏</span><span class="lbl">Ölçü</span></button>
     <div class="tsep"></div>
@@ -216,7 +216,7 @@ let tool = 'mdf';
 let inputMode = 'pen';     
 let orthoOn = true;
 let snapOn = true;
-let voiceControlOn = false; // Sesli kontrol modu varsayılan KAPALI — kullanıcı dokunarak açar
+let voiceControlOn = false;
 let multiSelect = false;
 
 let snapSettings = {
@@ -390,7 +390,7 @@ function getSnapPoints(excludeId){
   return pts;
 }
 
-// ---------- Object Snap Tracking (OTRACK) — çoklu nokta & köşe kesişimi ----------
+// ---------- Object Snap Tracking (OTRACK) ----------
 function addTrackedPoint(p){
   for(const tp of trackedPoints){
     if(tp.distanceTo(p) < 0.01) return;
@@ -401,8 +401,6 @@ function addTrackedPoint(p){
 function clearTrackedPoints(){
   trackedPoints = [];
 }
-// Az önce bitirilen şeklin uç noktalarını izleme havuzuna ekler (temizlemek yerine),
-// böylece bir sonraki çizimde o köşeler hâlâ hizalama için kullanılabilir.
 function feedTrackedPointsFromPoints(pts){
   for(const p of pts) addTrackedPoint(p);
 }
@@ -433,7 +431,6 @@ function computeSnap(worldPt, excludeId){
   if(snapSettings.tracking && trackedPoints.length){
     const tol = 12 / scale;
 
-    // İki noktanın izleme çizgilerinin kesiştiği hayali köşe (asıl istenen özellik)
     if(trackedPoints.length >= 2){
       for(let i=0;i<trackedPoints.length;i++){
         for(let j=0;j<trackedPoints.length;j++){
@@ -447,7 +444,6 @@ function computeSnap(worldPt, excludeId){
       }
     }
 
-    // Tek nokta bazlı yatay/dikey izleme (eski davranış, her izlenen nokta için)
     for(const tp of trackedPoints){
       const dx = Math.abs(worldPt.x - tp.x);
       const dy = Math.abs(worldPt.y - tp.y);
@@ -483,7 +479,7 @@ function applyOrtho(start, pt){
   return dx >= dy ? new Point(pt.x, start.y) : new Point(start.x, pt.y);
 }
 
-// ---------- SES TANIMA (SPEECH RECOGNITION) MOTORU ----------
+// ---------- SES TANIMA MOTORU ----------
 let recognition = null;
 let voiceCommitTimer = null;
 
@@ -568,14 +564,12 @@ function stopVoiceRecognition() {
   clearTimeout(voiceCommitTimer);
 }
 
-// Türkçe Metin Sayılarını Rakama Çevirme
 function parseTurkishNumber(str) {
   const digits = str.replace(/[^0-9]/g, '');
   if (digits.length > 0) return parseInt(digits, 10);
 
   const units = { 'sıfır':0, 'bir':1, 'iki':2, 'üç':3, 'dört':4, 'beş':5, 'altı':6, 'yedi':7, 'sekiz':8, 'dokuz':9 };
   const tens = { 'on':10, 'yirmi':20, 'otuz':30, 'kırk':40, 'elli':50, 'altmış':60, 'yetmiş':70, 'seksen':80, 'doksan':90 };
-  const hundreds = { 'yüz':100 };
 
   const words = str.split(/\s+/);
   let total = 0, current = 0;
@@ -614,12 +608,14 @@ function drawGrid(){
   ctx.stroke();
   ctx.restore();
 }
+
 function pickGridStep(){
   const target=60; let step=10;
   while(step*scale<target) step*= (step/10===1?2.5:2);
   while(step*scale>target*4) step/=2;
   return step;
 }
+
 function normalFor(p0,p1){
   const dx=p1.x-p0.x, dy=p1.y-p0.y;
   let nx=-dy,ny=dx; const len=Math.hypot(nx,ny)||1;
@@ -628,6 +624,7 @@ function normalFor(p0,p1){
   if(nx===0&&ny===0){ nx=0; ny=-1; }
   return {x:nx,y:ny};
 }
+
 function roundRect(x,y,w,h,r){
   ctx.beginPath();
   ctx.moveTo(x+r,y);
@@ -637,19 +634,52 @@ function roundRect(x,y,w,h,r){
   ctx.arcTo(x,y,x+w,y,r);
   ctx.closePath();
 }
+
+/* SORU İŞARETİ VE ÖLÇÜ ÇAKIŞMASINI ÇÖZEN DÜZELTİLMİŞ LABEL ÇİZİMİ */
 function drawLabelBox(sx,sy,text,hitKey,mm,editable){
   ctx.font='600 12px -apple-system, sans-serif';
-  const w=ctx.measureText(text).width;
-  const boxW=w+10, boxH=18;
-  const bx=sx-boxW/2, by=sy-boxH/2;
-  ctx.fillStyle='rgba(16,18,20,0.9)';
+  const textWidth = ctx.measureText(text).width;
+  
+  // Soru işareti butonu ve aradaki emniyet mesafesi (padding) hesabı
+  const showBtn = editable !== false;
+  const btnWidth = showBtn ? 16 : 0;
+  const btnGap = showBtn ? 6 : 0;
+  
+  const boxW = textWidth + btnWidth + btnGap + 12;
+  const boxH = 20;
+  const bx = sx - boxW/2, by = sy - boxH/2;
+  
+  ctx.fillStyle = 'rgba(16,18,20,0.92)';
   ctx.strokeStyle = (editingLabel && editingLabel.key===hitKey) ? '#ffb454' : '#3a3d42';
-  ctx.lineWidth=1;
-  roundRect(bx,by,boxW,boxH,5);
+  ctx.lineWidth = 1;
+  roundRect(bx,by,boxW,boxH,6);
   ctx.fill(); ctx.stroke();
-  ctx.fillStyle='#ffb454';
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(text, sx, sy+0.5);
+
+  // Soru işareti ikonu için daha öne yerleşim (Çakışmayı önleyen kısım)
+  if(showBtn){
+    const btnX = bx + 10;
+    const btnY = sy;
+    ctx.beginPath();
+    ctx.arc(btnX, btnY, 6.5, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ffb454';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffb454';
+    ctx.font = 'bold 10px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('?', btnX, btnY + 0.5);
+  }
+
+  // Ölçü rakamlarını soru işaretinden sağa kaydırarak okunabilir yapıyoruz
+  ctx.font = '600 12px -apple-system, sans-serif';
+  ctx.fillStyle = '#ffb454';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const textX = bx + (showBtn ? 22 : 6);
+  ctx.fillText(text, textX, sy + 0.5);
+
   if(editable) labelHitboxes.push({x:bx,y:by,w:boxW,h:boxH,key:hitKey,mm});
 }
 
@@ -729,6 +759,7 @@ function dimGeometry(p0,p1,offsetSigned){
   const ext1b = new Point(dimP1.x+rnx*sign*overshoot, dimP1.y+rny*sign*overshoot);
   return { dimP0, dimP1, ext0:[ext0a,ext0b], ext1:[ext1a,ext1b] };
 }
+
 function drawArrow(tipWorld, dirWorld){
   const tip = worldToScreen(tipWorld);
   const dLen = Math.hypot(dirWorld.x,dirWorld.y)||1;
@@ -747,6 +778,7 @@ function drawArrow(tipWorld, dirWorld){
   ctx.closePath();
   ctx.fill();
 }
+
 function drawDimension(s, isSelected){
   const [p0,p1] = s.points;
   const off = s.offset;
@@ -894,7 +926,7 @@ function render(){
 }
 
 // ---------- Pointer & Dynamic Input ----------
-let panOnly = false; // Tek dokunuşla "Gezin" modu — açıkken hiçbir dokunuş çizim/silme/seçim yapmaz, sadece kaydırır
+let panOnly = false;
 function getPointerType(e){ return e.pointerType||'mouse'; }
 function shouldDraw(e){
   if(isMiddleMousePan) return false;
@@ -913,7 +945,6 @@ function shouldPan(e){
   return false;
 }
 function localPos(e){ const r=wrap.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top}; }
-
 
 wrap.addEventListener('pointerdown', onPointerDown, {passive:false});
 wrap.addEventListener('pointermove', onPointerMove, {passive:false});
@@ -1611,7 +1642,6 @@ function isEdgeClosed(pA, pB, currentMdfId){
 
 // ---------- CSV / E-Tablo Dışa Aktarma ----------
 function csvNum(mm){
-  // Türkçe Excel ondalık ayracı virgüldür — nokta gelirse Excel'de metin olarak kalır, sayısal işlem yapılamaz
   return fmtLen(mm).replace('.', ',');
 }
 function exportMdfCsv(){
