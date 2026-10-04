@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Çizgi CAD v15.2 - Gezinme, Çoklu Seçim ve Excel Düzeltmeleri</title>
+<title>Çizgi CAD v15.3 - AutoCAD OTRACK Ofset Desteği</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b1d1f">
 <meta name="mobile-web-app-capable" content="yes">
@@ -140,7 +140,7 @@
   <div id="canvasWrap">
     <canvas id="cv"></canvas>
     <input id="lenInput" inputmode="decimal" />
-    <div id="directInputBox">Ölçü (mm): <span id="directInputVal">0</span></div>
+    <div id="directInputBox"><span id="directInputLabel">Ölçü (mm):</span> <span id="directInputVal">0</span></div>
     <div id="voiceStatus"><span>🎙️</span><span>Dinleniyor...</span></div>
     <div id="toast"></div>
   </div>
@@ -254,6 +254,7 @@ const MDF_THICKNESS = 18;
 
 const lenInput = document.getElementById('lenInput');
 const directInputBox = document.getElementById('directInputBox');
+const directInputLabel = document.getElementById('directInputLabel');
 const directInputVal = document.getElementById('directInputVal');
 const voiceStatus = document.getElementById('voiceStatus');
 const btnVoiceToggle = document.getElementById('btnVoiceToggle');
@@ -397,8 +398,9 @@ function feedTrackedPointsFromPoints(pts){
   for(const p of pts) addTrackedPoint(p);
 }
 
+// ---------- Gelişmiş Snap Engine + AutoCAD OTRACK Mesafe Hesabı ----------
 function computeSnap(worldPt, excludeId){
-  if(!snapOn) return { point: worldPt, marker: null, guides: [] };
+  if(!snapOn) return { point: worldPt, marker: null, guides: [], trackBase: null, trackDist: 0 };
   
   const snapPts = getSnapPoints(excludeId);
   const radius = 16 / scale;
@@ -417,7 +419,7 @@ function computeSnap(worldPt, excludeId){
     if(snapSettings.tracking && best.type === 'point'){
       addTrackedPoint(best.point);
     }
-    return { point: best.point, marker: best.type, guides: [] };
+    return { point: best.point, marker: best.type, guides: [], trackBase: null, trackDist: 0 };
   }
 
   if(snapSettings.tracking && trackedPoints.length){
@@ -430,20 +432,25 @@ function computeSnap(worldPt, excludeId){
           const a = trackedPoints[i], b = trackedPoints[j];
           const candidate = new Point(a.x, b.y);
           if(worldPt.distanceTo(candidate) < tol){
-            return { point: candidate, marker: 'track2', guides: [a, b] };
+            return { point: candidate, marker: 'track2', guides: [a, b], trackBase: null, trackDist: 0 };
           }
         }
       }
     }
 
+    // AutoCAD OTRACK Hizalama ve Uzaklık Takibi
     for(const tp of trackedPoints){
       const dx = Math.abs(worldPt.x - tp.x);
       const dy = Math.abs(worldPt.y - tp.y);
       if(dx < tol){
-        return { point: new Point(tp.x, worldPt.y), marker: 'track', guides: [tp] };
+        const snappedPt = new Point(tp.x, worldPt.y);
+        const dist = tp.distanceTo(snappedPt);
+        return { point: snappedPt, marker: 'track', guides: [tp], trackBase: tp, trackDist: dist };
       }
       if(dy < tol){
-        return { point: new Point(worldPt.x, tp.y), marker: 'track', guides: [tp] };
+        const snappedPt = new Point(worldPt.x, tp.y);
+        const dist = tp.distanceTo(snappedPt);
+        return { point: snappedPt, marker: 'track', guides: [tp], trackBase: tp, trackDist: dist };
       }
     }
   }
@@ -456,13 +463,13 @@ function computeSnap(worldPt, excludeId){
         const p1 = edges[i], p2 = edges[(i+1)%edges.length];
         const proj = worldPt.projectToSegment(p1, p2);
         if(worldPt.distanceTo(proj) < radius){
-          return { point: proj, marker: 'perp', guides: [p1, p2] };
+          return { point: proj, marker: 'perp', guides: [p1, p2], trackBase: null, trackDist: 0 };
         }
       }
     }
   }
 
-  return { point: worldPt, marker: null, guides: [] };
+  return { point: worldPt, marker: null, guides: [], trackBase: null, trackDist: 0 };
 }
 
 function applyOrtho(start, pt){
@@ -494,7 +501,7 @@ function initVoiceRecognition() {
 
     transcript = transcript.trim().toLowerCase();
 
-    if(!drawing || (drawing.type !== 'line' && drawing.type !== 'mdf')) return;
+    if(!drawing && directTypedLength.length === 0 && !snapResult) return;
 
     const parsedNumber = parseTurkishNumber(transcript);
 
@@ -504,7 +511,7 @@ function initVoiceRecognition() {
 
       clearTimeout(voiceCommitTimer);
       voiceCommitTimer = setTimeout(() => {
-        if (drawing && directTypedLength.length > 0) {
+        if (directTypedLength.length > 0) {
           commitDirectTypedLength();
         }
       }, 350);
@@ -625,7 +632,6 @@ function roundRect(x,y,w,h,r){
   ctx.closePath();
 }
 
-/* ÖLÇÜ RAKAMLARININ VE SORU İŞARETİNİN DÜZGÜN HİZALANDIĞI FONKSİYON */
 function drawLabelBox(sx,sy,text,hitKey,mm,editable){
   ctx.font='600 12px -apple-system, sans-serif';
   const textWidth = ctx.measureText(text).width;
@@ -644,7 +650,6 @@ function drawLabelBox(sx,sy,text,hitKey,mm,editable){
   roundRect(bx,by,boxW,boxH,6);
   ctx.fill(); ctx.stroke();
 
-  // Soru İşareti Butonu (Sola çekilerek rakamların önünden uzaklaştırıldı)
   if(showBtn){
     const btnX = bx + 10;
     const btnY = sy;
@@ -661,7 +666,6 @@ function drawLabelBox(sx,sy,text,hitKey,mm,editable){
     ctx.fillText('?', btnX, btnY + 0.5);
   }
 
-  // Ölçü Değeri (Boşluk bırakılarak netleşti)
   ctx.font = '600 12px -apple-system, sans-serif';
   ctx.fillStyle = '#ffb454';
   ctx.textAlign = 'left';
@@ -891,6 +895,14 @@ function drawSnapAndTrack(){
       ctx.save(); ctx.setLineDash([5, 5]); ctx.strokeStyle='#4fa8ff'; ctx.lineWidth=1.5;
       ctx.beginPath(); ctx.moveTo(tp.x, tp.y); ctx.lineTo(sp.x, sp.y); ctx.stroke(); ctx.restore();
       ctx.beginPath(); ctx.arc(sp.x, sp.y, 5, 0, Math.PI * 2); ctx.fill();
+
+      // Hiza Çizgisindeki Mesafe Etiketi Görseli
+      if(snapResult.trackDist > 0){
+        ctx.font = 'bold 11px -apple-system, sans-serif';
+        ctx.fillStyle = '#ffb454';
+        ctx.fillText(fmtLen(snapResult.trackDist) + ' mm', sp.x + 10, sp.y - 10);
+      }
+
     } else if(snapResult.marker==='mid'){ 
       ctx.beginPath(); ctx.moveTo(sp.x,sp.y-7); ctx.lineTo(sp.x+7,sp.y+6); ctx.lineTo(sp.x-7,sp.y+6); ctx.closePath(); ctx.stroke(); 
     } else if(snapResult.marker==='perp'){
@@ -1037,6 +1049,7 @@ function onPointerMove(e){
 
     const liveDist = startForOrtho.distanceTo(liveWorld);
     if(directTypedLength.length === 0){
+      directInputLabel.textContent = "Çizim Ölçüsü (mm):";
       directInputVal.textContent = fmtLen(liveDist);
     }
     directInputBox.style.display = 'block';
@@ -1045,6 +1058,17 @@ function onPointerMove(e){
   } else {
     const snapped = computeSnap(world, null);
     snapResult = snapped;
+
+    if(snapResult && snapResult.marker === 'track' && snapResult.trackBase){
+      if(directTypedLength.length === 0){
+        directInputLabel.textContent = "Ofset Mesafe (mm):";
+        directInputVal.textContent = fmtLen(snapResult.trackDist);
+      }
+      directInputBox.style.display = 'block';
+    } else if(directTypedLength.length === 0){
+      directInputBox.style.display = 'none';
+    }
+
     render();
   }
 }
@@ -1178,11 +1202,12 @@ function promptShapeLabel(s){
   }
 }
 
+// AutoCAD Klavyeden Doğrudan Değer Girişi ve OTRACK Kilitleme
 window.addEventListener('keydown',(e)=>{
   if(e.target.tagName === 'INPUT') return;
 
   if(e.key==='Enter'){
-    if(drawing && directTypedLength.length > 0){
+    if(directTypedLength.length > 0){
       commitDirectTypedLength();
       return;
     }
@@ -1195,7 +1220,8 @@ window.addEventListener('keydown',(e)=>{
 
   if((e.ctrlKey || e.metaKey) && e.key==='z'){ undo(); }
 
-  if(drawing && (drawing.type==='line' || drawing.type==='mdf')){
+  // Hem çizim yaparken hem de hıza (tracking) üzerindeyken klavyeden sayı yazmayı sağlar
+  if(drawing || (snapResult && snapResult.marker === 'track' && snapResult.trackBase)){
     if((e.key >= '0' && e.key <= '9') || e.key === '.' || e.key === ','){
       const char = e.key === ',' ? '.' : e.key;
       directTypedLength += char;
@@ -1210,9 +1236,14 @@ window.addEventListener('keydown',(e)=>{
 function updateDirectInputUI(){
   if(directTypedLength.length > 0){
     directInputVal.textContent = directTypedLength;
+    directInputBox.style.display = 'block';
   } else if(drawing && liveWorld){
     const p0 = drawing.points[0];
+    directInputLabel.textContent = "Çizim Ölçüsü (mm):";
     directInputVal.textContent = fmtLen(p0.distanceTo(liveWorld));
+  } else if(snapResult && snapResult.marker === 'track' && snapResult.trackBase){
+    directInputLabel.textContent = "Ofset Mesafe (mm):";
+    directInputVal.textContent = fmtLen(snapResult.trackDist);
   }
 }
 
@@ -1223,6 +1254,8 @@ function resetDirectInput(){
 
 function commitDirectTypedLength(){
   const mmVal = parseFloat(directTypedLength);
+  
+  // 1. Çizim yapılıyorken girilen doğrudan ölçü
   if(!isNaN(mmVal) && mmVal > 0 && drawing && liveWorld){
     const p0 = drawing.points[0];
     const dx = liveWorld.x - p0.x, dy = liveWorld.y - p0.y;
@@ -1232,7 +1265,19 @@ function commitDirectTypedLength(){
       p0.y + Math.sin(angle) * mmVal
     );
     finalizeSimpleShape(targetPt);
+  } 
+  // 2. Henüz çizim yokken bir noktadan hıza alıp mesafe girilmesi (AutoCAD OTRACK Offset)
+  else if(!isNaN(mmVal) && mmVal > 0 && !drawing && snapResult && snapResult.marker === 'track' && snapResult.trackBase){
+    const base = snapResult.trackBase;
+    const dx = liveWorld.x - base.x, dy = liveWorld.y - base.y;
+    const angle = Math.atan2(dy, dx);
+    const offsetPt = new Point(
+      base.x + Math.cos(angle) * mmVal,
+      base.y + Math.sin(angle) * mmVal
+    );
+    handleDrawTap(offsetPt);
   }
+
   resetDirectInput();
 }
 
@@ -1583,7 +1628,7 @@ document.getElementById('grpFile').addEventListener('click', function(){
   ]);
 });
 
-const inputIcons={pen:'🖊️',hand:'✋',pan:'🖐️️'};
+const inputIcons={pen:'🖊️',hand:'✋',pan:'🖐'};
 document.getElementById('grpInput').addEventListener('click', function(){
   openMenu(this, [
     {icon:'🖊️', label:'Kalem (S Pen çizer)', active:inputMode==='pen', onClick:()=>setInputMode('pen')},
