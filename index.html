@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Çizgi CAD v15.5 - AutoCAD OTRACK Enter Onaylı Ofset Yakalama</title>
+<title>Çizgi CAD v15.6 - Etiket Öncelikli Hassas Yakalama ve OTRACK</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1b1d1f">
 <meta name="mobile-web-app-capable" content="yes">
@@ -118,9 +118,9 @@
 
   <div id="topbar">
     <button class="gbtn active" id="grpDraw"><span id="grpDrawIcon">▬</span><span class="lbl">Çiz</span></button>
-    <button class="gbtn" id="grpEdit"><span>✂️️</span><span class="lbl">Düzenle</span></button>
+    <button class="gbtn" id="grpEdit"><span>✂️</span><span class="lbl">Düzenle</span></button>
     <button class="gbtn" id="btnEraser"><span>🧹</span><span class="lbl">Sil</span></button>
-    <button class="gbtn" id="btnUndo"><span>↩️</span><span class="lbl">Geri Al</span></button>
+    <button class="gbtn" id="btnUndo"><span>↩️️</span><span class="lbl">Geri Al</span></button>
     <div class="tsep"></div>
     <button class="gbtn" id="btnPanOnly"><span>🖐</span><span class="lbl">Gezin</span></button>
     <div class="tsep"></div>
@@ -398,12 +398,12 @@ function feedTrackedPointsFromPoints(pts){
   for(const p of pts) addTrackedPoint(p);
 }
 
-// ---------- AutoCAD OTRACK Hıza ve Hassas Yakalama Engine ----------
+// ---------- AutoCAD OTRACK Hıza ve Etiket Çakışma Önlemeli Snap Engine ----------
 function computeSnap(worldPt, excludeId){
   if(!snapOn) return { point: worldPt, marker: null, guides: [], trackBase: null, trackDir: null, trackDist: 0 };
   
   const snapPts = getSnapPoints(excludeId);
-  const radius = 16 / scale;
+  const radius = 14 / scale;
   let best = null, minD = Infinity;
 
   for(const sp of snapPts){
@@ -438,12 +438,10 @@ function computeSnap(worldPt, excludeId){
       }
     }
 
-    // AutoCAD Vektörel Hıza Yönü ve Mesafe Yakalama
     for(const tp of trackedPoints){
       const dx = worldPt.x - tp.x;
       const dy = worldPt.y - tp.y;
       
-      // Dikey Hıza (Yukarı / Aşağı)
       if(Math.abs(dx) < tol){
         const dirY = dy >= 0 ? 1 : -1;
         const dir = { x: 0, y: dirY };
@@ -452,7 +450,6 @@ function computeSnap(worldPt, excludeId){
         return { point: snappedPt, marker: 'track', guides: [tp], trackBase: tp, trackDir: dir, trackDist: dist };
       }
       
-      // Yatay Hıza (Sağa / Sola)
       if(Math.abs(dy) < tol){
         const dirX = dx >= 0 ? 1 : -1;
         const dir = { x: dirX, y: 0 };
@@ -904,7 +901,6 @@ function drawSnapAndTrack(){
       ctx.beginPath(); ctx.moveTo(tp.x, tp.y); ctx.lineTo(sp.x, sp.y); ctx.stroke(); ctx.restore();
       ctx.beginPath(); ctx.arc(sp.x, sp.y, 5, 0, Math.PI * 2); ctx.fill();
 
-      // Hıza Çizgisindeki Canlı Ofset Görseli
       if(snapResult.trackDist > 0){
         ctx.font = 'bold 11px -apple-system, sans-serif';
         ctx.fillStyle = '#ffb454';
@@ -993,6 +989,7 @@ function onPointerDown(e){
   const lp=localPos(e);
   pointers.set(e.pointerId,{x:lp.x,y:lp.y,type:getPointerType(e)});
 
+  // Ölçü Etiketine Tıklama Önceliği (Sarı Kutuya Tıklanınca Snap Es Geçilir)
   const hitLabel = hitTestLabel(lp);
   if(hitLabel){ openLabelEditor(hitLabel); return; }
   closeLabelEditor();
@@ -1190,9 +1187,18 @@ wrap.addEventListener('dblclick', (e)=>{
   if(drawing && drawing.type==='polyline'){ finishPolyline(); return; }
 
   const lp = localPos(e);
+  
+  // Ölçü kutusuna çift tıklandığında öncelik vermek
+  const hitLabel = hitTestLabel(lp);
+  if(hitLabel){
+    const [idStr] = hitLabel.key.split(':');
+    const s = shapes.find(sh => sh.id === parseInt(idStr, 10));
+    if(s && s.type === 'mdf') promptShapeLabel(s);
+    return;
+  }
+
   const world = screenToWorld(lp);
   const hit = hitTestShape(world);
-
   if(hit && hit.type === 'mdf'){
     promptShapeLabel(hit);
   }
@@ -1228,7 +1234,6 @@ window.addEventListener('keydown',(e)=>{
 
   if((e.ctrlKey || e.metaKey) && e.key==='z'){ undo(); }
 
-  // Çizim yaparken veya hıza üzerindeyken klavyeden sayı dinleme
   if(drawing || (snapResult && snapResult.marker === 'track' && snapResult.trackBase)){
     if((e.key >= '0' && e.key <= '9') || e.key === '.' || e.key === ','){
       const char = e.key === ',' ? '.' : e.key;
@@ -1263,7 +1268,6 @@ function resetDirectInput(){
 function commitDirectTypedLength(){
   const mmVal = parseFloat(directTypedLength);
   
-  // 1. Çizim devam ederken girilen uzunluk
   if(!isNaN(mmVal) && mmVal > 0 && drawing && liveWorld){
     const p0 = drawing.points[0];
     const dx = liveWorld.x - p0.x, dy = liveWorld.y - p0.y;
@@ -1274,12 +1278,10 @@ function commitDirectTypedLength(){
     );
     finalizeSimpleShape(targetPt);
   } 
-  // 2. AutoCAD OTRACK: Tıklamadan hıza alıp ofset mesafesi yazıp Enter'a basıldığında yakalama
   else if(!isNaN(mmVal) && mmVal > 0 && !drawing && snapResult && snapResult.marker === 'track' && snapResult.trackBase && snapResult.trackDir){
     const base = snapResult.trackBase;
     const dir = snapResult.trackDir;
     
-    // Yön ve mesafe ile doğrudan yeni başlangıç noktası oluşturulur
     const offsetPt = new Point(
       base.x + dir.x * mmVal,
       base.y + dir.y * mmVal
